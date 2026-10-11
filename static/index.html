@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velotype performance demo</title>
+<meta name="description" content="The same dashboard in Velotype, React, and plain DOM code, timed in your own browser.">
+<style>
+    :root {
+        color-scheme: light dark;
+        --bg: #f6f7f9;
+        --surface: #ffffff;
+        --fg: #1d2330;
+        --muted: #5d6678;
+        --line: #e1e4ea;
+        --accent: #3b6fe0;
+        --accent-fg: #ffffff;
+        --accent-soft: #e6eeff;
+        --warn: #8a5a00;
+        --warn-bg: #fdf1d6;
+        --code-bg: #f3f4f7;
+        --series-0: #3b6fe0;
+        --series-1: #7c3aed;
+        --series-2: #ca8a04;
+        --series-3: #ea580c;
+        --series-4: #16a34a;
+        --series-5: #0891b2;
+        --series-6: #db2777;
+        --series-7: #dc2626;
+        --series-8: #6b7280;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg: #0f1216;
+            --surface: #171b21;
+            --fg: #e4e7ee;
+            --muted: #9aa3b5;
+            --line: #2a2f3a;
+            --accent: #7aa2ff;
+            --accent-fg: #0f1216;
+            --accent-soft: #22304d;
+            --warn: #f0c060;
+            --warn-bg: #3a2f14;
+            --code-bg: #12151a;
+            --series-0: #7aa2ff;
+            --series-1: #a78bfa;
+            --series-2: #facc15;
+            --series-3: #fb923c;
+            --series-4: #4ade80;
+            --series-5: #22d3ee;
+            --series-6: #f472b6;
+            --series-7: #f87171;
+            --series-8: #9ca3af;
+        }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: var(--accent); }
+    code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
+    h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
+    h2 { font-size: 1.2rem; margin: 0 0 12px; }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.82em; overflow-wrap: anywhere; }
+
+    .page { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 20px; }
+    .intro p { max-width: 70ch; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; min-width: 0; }
+    .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .card-head h2 { margin: 0; }
+
+    .controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; margin-bottom: 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+    .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+    .field > span, .field > legend { color: var(--muted); }
+    fieldset.field { border: 0; margin: 0; padding: 0; min-width: 0; }
+    fieldset.field > legend { padding: 0; margin-bottom: 4px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    .check { display: flex; align-items: center; gap: 6px; }
+    select, .button, .tab {
+        font: inherit;
+        color: var(--fg);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 6px 12px;
+    }
+    .button, .tab { cursor: pointer; }
+    .button:hover, .tab:hover { border-color: var(--accent); }
+    .button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+    .button.warning { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+    .status { display: flex; flex-direction: column; gap: 4px; min-height: 2.8em; margin-bottom: 8px; }
+    progress { width: 100%; height: 8px; accent-color: var(--accent); }
+
+    .stage { display: block; width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+
+    .results { display: flex; flex-direction: column; gap: 20px; }
+    .alert { background: var(--warn-bg); color: var(--fg); border-left: 4px solid var(--warn); border-radius: 6px; padding: 12px 16px; }
+    .alert ul { margin: 8px 0 0; padding-left: 1.2em; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 0.9em; }
+    .end { text-align: right; }
+    td { font-variant-numeric: tabular-nums; }
+    .detail { font-size: 0.82em; color: var(--muted); max-width: 42ch; }
+    .cell { display: grid; justify-items: end; gap: 2px; min-width: 7em; }
+    .cell .ms { font-weight: 600; }
+    .cell .relative { font-size: 0.8em; color: var(--muted); }
+    .cell.fastest .relative, .fastest { color: var(--accent); font-weight: 600; }
+    .meter { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+    .meter > span { display: block; height: 100%; background: var(--accent); }
+    .mean td { border-bottom: 0; }
+
+    .chart { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.88em; }
+    .legend > span { display: flex; align-items: center; gap: 6px; }
+    .swatch { width: 12px; height: 12px; border-radius: 3px; }
+    .chart-group { display: grid; grid-template-columns: minmax(8em, 11em) 1fr; column-gap: 12px; align-items: center; }
+    .chart-label { grid-row: span 9; font-size: 0.9em; }
+    .chart-row { display: flex; align-items: center; gap: 8px; height: 14px; }
+    .chart-bar { display: block; height: 10px; border-radius: 3px; }
+    .chart-value { font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .series-0 { background: var(--series-0); }
+    .series-1 { background: var(--series-1); }
+    .series-2 { background: var(--series-2); }
+    .series-3 { background: var(--series-3); }
+    .series-4 { background: var(--series-4); }
+    .series-5 { background: var(--series-5); }
+    .series-6 { background: var(--series-6); }
+    .series-7 { background: var(--series-7); }
+    .series-8 { background: var(--series-8); }
+
+    .samples { margin-top: 16px; }
+    .samples summary { cursor: pointer; color: var(--accent); }
+    .share { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0 8px; }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .tab.active { background: var(--accent-soft); border-color: var(--accent); }
+    .code { margin: 0; max-height: 560px; overflow: auto; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 0.82em; line-height: 1.5; }
+    .notes { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
+
+    @media (max-width: 640px) {
+        .stage { height: 440px; }
+        .card { padding: 16px; }
+        .chart-group { grid-template-columns: 1fr; }
+        .chart-label { grid-row: auto; }
+    }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="harness.js"></script>
+</body>
+</html>

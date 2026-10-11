@@ -1,0 +1,38 @@
+{
+    "tasks": {
+        "build": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run ./scripts/build.ts",
+        "serve": "deno run --allow-read --allow-net jsr:@std/http@^1.0.20/file-server ./site --port 8000",
+        "check": "deno check harness/ shared/ scripts/ impl/velotype/ impl/velotype-wc/ impl/solid/ impl/react/ impl/preact/ impl/lit/ impl/vanilla/"
+    },
+    // Keeps Deno's default 24 hour wait on new versions of third-party packages, but not on Velotype's own,
+    // so the demo can measure a Velotype release the day it is published
+    "minimumDependencyAge": {"age": "P1D", "exclude": ["jsr:@velotype/*"]},
+    "compilerOptions": {
+        "lib": ["dom", "dom.iterable", "deno.ns", "esnext"]
+    },
+    "imports": {
+        "@velotype/velotype": "jsr:@velotype/velotype@^0.3.1",
+        "react": "npm:react@^19.3.0",
+        "react-dom": "npm:react-dom@^19.3.0",
+        "@types/react": "npm:@types/react@^19.3.0",
+        "@types/react-dom": "npm:@types/react-dom@^19.3.0",
+        "solid-js": "npm:solid-js@^1.9.17",
+        "svelte": "npm:svelte@^5.57.2",
+        "vue": "npm:vue@^3.5.43",
+        "preact": "npm:preact@^11.0.1",
+        "lit": "npm:lit@^3.3.3",
+        "@babel/core": "npm:@babel/core@^7.29.7",
+        "@babel/preset-typescript": "npm:@babel/preset-typescript@^7.29.7",
+        "babel-preset-solid": "npm:babel-preset-solid@^1.9.16",
+        "@vue/compiler-sfc": "npm:@vue/compiler-sfc@^3.5.43",
+        "esbuild": "npm:esbuild@^0.28.2",
+        "@std/fs": "jsr:@std/fs@^1.0.19",
+        "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.1"
+    },
+    "lint": {
+        "rules": {
+            "exclude": ["jsx-key"]
+        }
+    },
+    "exclude": ["site/"]
+}
