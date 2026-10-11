@@ -29,6 +29,7 @@
         --series-7: #dc2626;
         --series-8: #6b7280;
         --series-9: #a16207;
+        --bar-text: #ffffff;
     }
     @media (prefers-color-scheme: dark) {
         :root {
@@ -53,6 +54,7 @@
             --series-7: #f87171;
             --series-8: #9ca3af;
             --series-9: #d6b370;
+            --bar-text: #0f1216;
         }
     }
     * { box-sizing: border-box; }
@@ -126,14 +128,19 @@
 
     .chart { margin: 0; display: flex; flex-direction: column; gap: 10px; }
     .chart.by-action { margin-top: 10px; }
-    .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.88em; }
-    .legend > span { display: flex; align-items: center; gap: 6px; }
-    .swatch { width: 12px; height: 12px; border-radius: 3px; }
     .chart-group { display: grid; grid-template-columns: minmax(8em, 11em) 1fr; column-gap: 12px; align-items: center; }
     .chart-label { grid-row: span 10; font-size: 0.9em; }
-    .chart-row { display: flex; align-items: center; gap: 8px; height: 14px; min-width: 0; }
-    .chart-bar { display: block; flex: none; height: 10px; border-radius: 3px; }
-    .chart-value { font-size: 0.78em; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .chart-row { display: flex; align-items: center; height: 20px; min-width: 0; }
+    /* Each bar is a container, so that its name can move outside it when the bar is too short to hold it */
+    .chart-bar { position: relative; display: block; flex: none; height: 18px; border-radius: 3px; container-type: inline-size; font-size: 12px; }
+    .bar-name { position: absolute; left: 7px; top: 0; line-height: 18px; font-weight: 600; color: var(--bar-text); white-space: nowrap; }
+    .chart-value { position: absolute; left: calc(100% + 8px); top: 0; line-height: 18px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .value-name { display: none; color: var(--fg); }
+    @container (max-width: 125px) {
+        .bar-name { display: none; }
+        .value-name { display: inline; }
+    }
+    .chart-note { font-size: 12px; color: var(--muted); white-space: nowrap; }
     .series-0 { background: var(--series-0); }
     .series-1 { background: var(--series-1); }
     .series-2 { background: var(--series-2); }

@@ -245,11 +245,19 @@ function renderTable(summary: Summary): HTMLElement {
 }
 
 /** One bar with its value just after it; fraction (0 to 1) is of the width left beside the value */
-function chartRow(series: number, fraction: number, value: string, slow: boolean): HTMLElement {
+/**
+ * One bar, with the implementation's name inside it and the value just after it
+ *
+ * The value is inside the bar too, placed just past its end, so that the bar's container query can move the
+ * name next to the value when the bar is too short to hold it
+ */
+function chartRow(series: number, name: string, fraction: number, value: string, slow: boolean): HTMLElement {
     return <div class="chart-row">
         <span class={slow ? `chart-bar slow series-${series}` : `chart-bar series-${series}`}
-            style={{width: `max(2px, calc((100% - 10em) * ${Math.min(1, fraction).toFixed(4)}))`}}></span>
-        <span class="chart-value">{value}</span>
+            style={{width: `max(4px, calc((100% - 12em) * ${Math.min(1, fraction).toFixed(4)}))`}}>
+            <span class="bar-name">{name}</span>
+            <span class="chart-value"><span class="value-name">{name} · </span>{value}</span>
+        </span>
     </div>
 }
 
@@ -270,12 +278,11 @@ function renderChart(summary: Summary): HTMLElement[] {
         summary.cells[metric.key][impl.key]?.kind === "time" ? summary.relative(metric.key, impl.key)! : 0)))
     return [<figure class="chart">
         <figcaption><strong>Time relative to the fastest</strong> <span class="muted">(1× is the fastest, lower is better; fastest overall first)</span></figcaption>
-        <div class="legend">{ordered.map(({impl, i}) => <span><span class={`swatch series-${i}`}></span>{implName(impl)}</span>)}</div>
         <div class="chart-group">
             <div class="chart-label"><strong>Geometric mean</strong><div class="detail">of every action</div></div>
             {means.map(({impl, i}) => {
                 const mean = summary.geometricMeans[impl.key]
-                return chartRow(i, mean.value / largestMean, meanWithUnit(summary, impl.key), mean.atLeast)
+                return chartRow(i, implName(impl), mean.value / largestMean, meanWithUnit(summary, impl.key), mean.atLeast)
             })}
         </div>
     </figure>, renderOverview(summary), <div>
@@ -290,12 +297,12 @@ function renderChart(summary: Summary): HTMLElement[] {
                             return null
                         }
                         if (cell.kind === "not run") {
-                            return <div class="chart-row"><span class="chart-value">not run</span></div>
+                            return <div class="chart-row"><span class="chart-note">{implName(impl)} · not run</span></div>
                         }
                         const relative = summary.relative(metric.key, impl.key)!
                         return cell.kind === "too slow"
-                            ? chartRow(i, 1, `too slow, ≥ ${relative.toFixed(1)}×`, true)
-                            : chartRow(i, relative / largest, `${relative.toFixed(2)}×`, false)
+                            ? chartRow(i, implName(impl), 1, `too slow, ≥ ${relative.toFixed(1)}×`, true)
+                            : chartRow(i, implName(impl), relative / largest, `${relative.toFixed(2)}×`, false)
                     })}
                 </div>)}
             </div>
@@ -315,7 +322,11 @@ function renderOverview(summary: Summary | undefined): HTMLElement {
     const ranked = summary ? summary.ranked.filter(impl => summary.geometricMeans[impl.key]) : []
     const impls = [...ranked, ...allImpls.filter(impl => !ranked.includes(impl))]
     // Vanilla JS is the baseline, not a framework
+    const frameworks = allImpls.filter(impl => impl.key !== "vanilla")
     const fastestFramework = ranked.find(impl => impl.key !== "vanilla")
+    const vanilla = allImpls.find(impl => impl.key === "vanilla")
+    // By what the browser downloads, so this is known before a run
+    const smallestFramework = frameworks.reduce<ImplInfo | undefined>((smallest, impl) => !smallest || impl.bundleGzipBytes < smallest.bundleGzipBytes ? impl : smallest, undefined)
     return <div class="overview">
         <div class="table-scroll">
             <table>
@@ -323,7 +334,15 @@ function renderOverview(summary: Summary | undefined): HTMLElement {
                     <th>Implementation</th><th class="end">Geometric mean</th><th class="end">Minified</th><th class="end">Gzipped</th><th class="end">Lines of code</th>
                 </tr></thead>
                 <tbody>{impls.map(impl => <tr>
-                    <td>{implName(impl)}{impl === fastestFramework ? <span class="tag">fastest framework (not vanilla)</span> : null}</td>
+                    <td>
+                        {implName(impl)}
+                        {impl === fastestFramework && summary ? <span class="tag">
+                            {vanilla && summary.meanOrder(vanilla.key) < summary.meanOrder(impl.key) ? "fastest framework (not vanilla)" : "fastest framework"}
+                        </span> : null}
+                        {impl === smallestFramework ? <span class="tag">
+                            {vanilla && vanilla.bundleGzipBytes < impl.bundleGzipBytes ? "smallest framework (not vanilla)" : "smallest framework"}
+                        </span> : null}
+                    </td>
                     <td class="end">{!summary ? <span class="muted">–</span> : summary.geometricMeans[impl.key] ? meanWithUnit(summary, impl.key) : <span class="muted">not run</span>}</td>
                     <td class="end">{formatKb(impl.bundleBytes)}</td>
                     <td class="end">{formatKb(impl.bundleGzipBytes)}</td>
