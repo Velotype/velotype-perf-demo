@@ -8,6 +8,8 @@
 export type ImplInfo = {
     key: string
     label: string
+    /** Tells versions of one framework apart, shown after its version */
+    variant?: string
     version?: string
     sourcePath: string
     sourceLines: number
@@ -33,14 +35,33 @@ export const metrics: Metric[] = [
 /** Samples in ms, by metric key, then implementation key */
 export type Samples = Record<string, Record<string, number[]>>
 
+/** Why a metric has no samples for an implementation: an action took longer than the time limit, or it was skipped after that */
+export type Outcome = "too slow" | "not run"
+/** Outcomes by metric key, then implementation key, for the metrics that did not finish */
+export type Outcomes = Record<string, Record<string, Outcome>>
+
+/** What a run has measured so far */
+export type RunResult = {samples: Samples, outcomes: Outcomes, timeLimit: number}
+
 /** Thrown to stop a run, with the reason to show */
 export class RunStopped extends Error {}
+
+/** Thrown when an action takes longer than the time limit, with the metric it was timing (none for setup) */
+export class TooSlow extends Error {
+    constructor(readonly ms: number, readonly metric?: string) {
+        super(`An action took ${Math.round(ms)} ms`)
+    }
+}
+
+/** A scenario that goes over the time limit stops; after this many, the implementation's other scenarios are skipped in that round */
+const tooSlowScenariosPerPage = 2
 
 const filterText = "eu-w"
 
 /** Controls one loaded implementation page */
 export class AppDriver {
-    constructor(readonly win: Window) {}
+    /** @timeLimit the longest an action may take, in ms, before it throws TooSlow */
+    constructor(readonly win: Window, readonly timeLimit: number = Infinity) {}
     get doc(): Document {
         return this.win.document
     }
@@ -62,13 +83,16 @@ export class AppDriver {
         setter.call(input, value)
         input.dispatchEvent(new (this.win as unknown as typeof globalThis).Event("input", {bubbles: true}))
     }
-    /** The rows the grid shows */
+    /** The rows the browser shows, by their style, so that a row hidden by an attribute but still displayed counts */
+    shownRows(): Element[] {
+        return Array.from(this.element("rows").children).filter(row => row.checkVisibility())
+    }
     visibleRows(): number {
-        return this.doc.querySelectorAll("#rows > :not([hidden])").length
+        return this.shownRows().length
     }
     /** What the page shows, to check that every implementation ends up in the same state */
     fingerprint(): string {
-        const first = this.doc.querySelector("#rows > :not([hidden])")
+        const first = this.shownRows()[0]
         const summary = ["sum-count", "sum-cpu", "sum-warn", "sum-down"].map(id => this.element(id).textContent).join(" ")
         return `${this.visibleRows()} rows | ${summary} | first: ${first ? first.textContent : "none"}`
     }
@@ -89,8 +113,13 @@ export class AppDriver {
         await this.nextPaint()
         await new Promise(resolve => setTimeout(resolve, 40))
     }
-    /** Times action from just before it runs until its result is painted */
-    async time(action: () => void): Promise<number> {
+    /**
+     * Times action from just before it runs until its result is painted
+     *
+     * Throws TooSlow when that is longer than the time limit. An action cannot be interrupted, since the page
+     * shares this thread, so this stops the next ones from running
+     */
+    async time(action: () => void, metric?: string): Promise<number> {
         await this.settle()
         checkVisible()
         const performance = this.win.performance
@@ -99,7 +128,14 @@ export class AppDriver {
         await this.nextPaint()
         const duration = performance.now() - start
         checkVisible()
+        if (duration > this.timeLimit) {
+            throw new TooSlow(duration, metric)
+        }
         return duration
+    }
+    /** Runs an untimed setup action, under the same time limit */
+    async perform(action: () => void): Promise<void> {
+        await this.time(action)
     }
 }
 
@@ -124,9 +160,10 @@ export type Scenario = {
 
 async function ensureRows(app: AppDriver, rows: number) {
     if (app.visibleRows() !== rows) {
-        app.type("")
-        app.click("create")
-        await app.settle()
+        await app.perform(() => {
+            app.type("")
+            app.click("create")
+        })
     }
 }
 function expectRows(app: AppDriver, expected: number, after: string) {
@@ -141,14 +178,13 @@ export const scenarios: Scenario[] = [
         key: "create", label: "Create and clear", metrics: ["create", "clear"], iterations: 2,
         prepare: async (app) => {
             if (app.visibleRows() > 0) {
-                app.click("clear")
-                await app.settle()
+                await app.perform(() => app.click("clear"))
             }
         },
         iterate: async (app, record, _iteration, rows) => {
-            record("create", await app.time(() => app.click("create")))
+            record("create", await app.time(() => app.click("create"), "create"))
             expectRows(app, rows, "Create")
-            record("clear", await app.time(() => app.click("clear")))
+            record("clear", await app.time(() => app.click("clear"), "clear"))
             expectRows(app, 0, "Clear")
         },
     },
@@ -156,7 +192,7 @@ export const scenarios: Scenario[] = [
         key: "live", label: "Live updates", metrics: ["tick"], iterations: 10,
         prepare: ensureRows,
         iterate: async (app, record) => {
-            record("tick", await app.time(() => app.click("tick")))
+            record("tick", await app.time(() => app.click("tick"), "tick"))
         },
     },
     {
@@ -165,10 +201,10 @@ export const scenarios: Scenario[] = [
         iterate: async (app, record, _iteration, rows) => {
             let total = 0
             for (let i = 1; i <= filterText.length; i++) {
-                total += await app.time(() => app.type(filterText.slice(0, i)))
+                total += await app.time(() => app.type(filterText.slice(0, i)), "filter")
             }
             record("filter", total)
-            record("unfilter", await app.time(() => app.type("")))
+            record("unfilter", await app.time(() => app.type(""), "unfilter"))
             expectRows(app, rows, "clearing the filter")
         },
     },
@@ -176,15 +212,15 @@ export const scenarios: Scenario[] = [
         key: "sort", label: "Sort", metrics: ["sort"], iterations: 2,
         prepare: ensureRows,
         iterate: async (app, record) => {
-            record("sort", await app.time(() => app.click("sort-cpu")))
-            record("sort", await app.time(() => app.click("sort-id")))
+            record("sort", await app.time(() => app.click("sort-cpu"), "sort"))
+            record("sort", await app.time(() => app.click("sort-id"), "sort"))
         },
     },
     {
         key: "move", label: "Move a row", metrics: ["move"], iterations: 5,
         prepare: ensureRows,
         iterate: async (app, record) => {
-            record("move", await app.time(() => app.click("move-top")))
+            record("move", await app.time(() => app.click("move-top"), "move"))
         },
     },
     {
@@ -195,21 +231,37 @@ export const scenarios: Scenario[] = [
             if (!link) {
                 throw new Error("The page has no row to select")
             }
-            record("select", await app.time(() => link.click()))
+            record("select", await app.time(() => link.click(), "select"))
         },
     },
 ]
+
+/** Where a run is: each count is 1-based, and step counts the iterations (warm-up included) done on the current page */
+export type Progress = {
+    round: number
+    rounds: number
+    impl: number
+    impls: number
+    /** The implementation being run, with its variant */
+    implName: string
+    step: number
+    steps: number
+    /** What the current page is doing, such as "filter" or "loading" */
+    activity: string
+}
 
 export type RunOptions = {
     impls: ImplInfo[]
     scenarios: Scenario[]
     rows: number
     rounds: number
+    /** The longest an action may take, in ms */
+    timeLimit: number
     frame: HTMLIFrameElement
-    /** Called after every iteration with the fraction done */
-    onProgress: (done: number, status: string) => void
-    /** Called whenever samples change */
-    onSamples: (samples: Samples) => void
+    /** Called after every iteration, and when a page starts loading */
+    onProgress: (progress: Progress) => void
+    /** Called whenever the result changes */
+    onResult: (result: RunResult) => void
     /** Called with each implementation's page state after each scenario, to compare */
     onFingerprint: (round: number, scenario: string, impl: string, fingerprint: string) => void
     shouldStop: () => boolean
@@ -227,8 +279,17 @@ function loadFrame(frame: HTMLIFrameElement, src: string): Promise<Window> {
 }
 
 /** Runs every scenario on every implementation, rotating their order each round */
-export async function run(options: RunOptions): Promise<Samples> {
+export async function run(options: RunOptions): Promise<RunResult> {
     const samples: Samples = {}
+    const outcomes: Outcomes = {}
+    const result: RunResult = {samples, outcomes, timeLimit: options.timeLimit}
+    // Too slow in any round wins over not run, so that a slow implementation is never reported as only skipped
+    const mark = (metric: string, impl: string, outcome: Outcome) => {
+        const byImpl = outcomes[metric] ||= {}
+        if (byImpl[impl] !== "too slow") {
+            byImpl[impl] = outcome
+        }
+    }
     for (const scenario of options.scenarios) {
         for (const metric of scenario.metrics) {
             samples[metric] = {}
@@ -237,36 +298,70 @@ export async function run(options: RunOptions): Promise<Samples> {
             }
         }
     }
-    const perPage = options.scenarios.reduce((sum, scenario) => sum + scenario.iterations + 1, 0)
-    const total = perPage * options.impls.length * options.rounds
-    let done = 0
+    const steps = options.scenarios.reduce((sum, scenario) => sum + scenario.iterations + 1, 0)
 
     for (let round = 0; round < options.rounds; round++) {
         const order = options.impls.map((_, i) => options.impls[(i + round) % options.impls.length])
-        for (const impl of order) {
-            const status = `Round ${round + 1} of ${options.rounds}: ${impl.label}`
-            options.onProgress(done / total, status + ", loading")
-            const app = new AppDriver(await loadFrame(options.frame, `impl/${impl.key}/?rows=${options.rows}`))
+        for (let implIndex = 0; implIndex < order.length; implIndex++) {
+            const impl = order[implIndex]
+            let done = 0
+            const progress = (activity: string) => options.onProgress({
+                round: round + 1, rounds: options.rounds,
+                impl: implIndex + 1, impls: order.length, implName: impl.variant ? `${impl.label} ${impl.variant}` : impl.label,
+                step: done, steps, activity,
+            })
+            progress("loading")
+            const app = new AppDriver(await loadFrame(options.frame, `impl/${impl.key}/?rows=${options.rows}`), options.timeLimit)
             await app.settle()
+            let tooSlowScenarios = 0
+            // After a scenario stops part way, this page has done different work from the others, so it is not compared again
+            let comparable = true
             for (const scenario of options.scenarios) {
-                await scenario.prepare(app, options.rows)
-                for (let iteration = 0; iteration <= scenario.iterations; iteration++) {
-                    if (options.shouldStop()) {
-                        throw new RunStopped("Stopped.")
-                    }
-                    // The first iteration warms up the page's code and is not recorded
-                    const record: Recorder = iteration === 0 ? () => {} : (metric, ms) => samples[metric][impl.key].push(ms)
-                    await scenario.iterate(app, record, iteration, options.rows)
-                    done++
-                    options.onProgress(done / total, `${status}, ${scenario.label.toLowerCase()}`)
+                const end = done + scenario.iterations + 1
+                if (tooSlowScenarios >= tooSlowScenariosPerPage) {
+                    scenario.metrics.forEach(metric => mark(metric, impl.key, "not run"))
+                    done = end
+                    continue
                 }
-                options.onSamples(samples)
-                options.onFingerprint(round, scenario.key, impl.key, app.fingerprint())
+                try {
+                    await scenario.prepare(app, options.rows)
+                    for (let iteration = 0; iteration <= scenario.iterations; iteration++) {
+                        if (options.shouldStop()) {
+                            throw new RunStopped("Stopped.")
+                        }
+                        // The first iteration warms up the page's code and is not recorded
+                        const record: Recorder = iteration === 0 ? () => {} : (metric, ms) => samples[metric][impl.key].push(ms)
+                        await scenario.iterate(app, record, iteration, options.rows)
+                        done++
+                        progress(scenario.label.toLowerCase())
+                    }
+                    if (comparable) {
+                        options.onFingerprint(round, scenario.key, impl.key, app.fingerprint())
+                    }
+                } catch (error) {
+                    if (!(error instanceof TooSlow)) {
+                        throw error
+                    }
+                    // The action that went over is too slow; the scenario's other metrics stopped, and are not run
+                    // where no round measured them (a setup action, such as creating the rows, times no metric)
+                    for (const metric of scenario.metrics) {
+                        if (metric === error.metric) {
+                            mark(metric, impl.key, "too slow")
+                        } else if (samples[metric][impl.key].length === 0) {
+                            mark(metric, impl.key, "not run")
+                        }
+                    }
+                    tooSlowScenarios++
+                    comparable = false
+                    done = end
+                    progress(`${scenario.label.toLowerCase()} was too slow`)
+                }
+                options.onResult(result)
             }
         }
     }
     options.frame.src = "about:blank"
-    return samples
+    return result
 }
 
 export function median(values: number[]): number {

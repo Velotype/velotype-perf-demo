@@ -11,16 +11,16 @@ const root = new URL("..", import.meta.url).pathname
 const site = root + "site/"
 
 /** The implementations, in the order the page shows them */
-// source is the file the page shows (the component, for Svelte and Vue), and defaultOn marks the ones a run includes by default
-const impls = [
+// source is the file the page shows (the component, for Svelte and Vue), variant tells versions of one framework apart,
+// and defaultOn marks the ones a run includes by default
+const impls: {key: string, label: string, variant?: string, entry: string, source: string, packageSpecifier?: string, defaultOn: boolean}[] = [
     {key: "velotype", label: "Velotype", entry: "impl/velotype/main.tsx", source: "impl/velotype/main.tsx", packageSpecifier: "jsr:@velotype/velotype", defaultOn: true},
-    {key: "velotype-wc", label: "Velotype + web components", entry: "impl/velotype-wc/main.tsx", source: "impl/velotype-wc/main.tsx", packageSpecifier: "jsr:@velotype/velotype", defaultOn: false},
     {key: "solid", label: "Solid", entry: "impl/solid/main.tsx", source: "impl/solid/main.tsx", packageSpecifier: "npm:solid-js", defaultOn: true},
-    {key: "svelte", label: "Svelte", entry: "impl/svelte/main.ts", source: "impl/svelte/App.svelte", packageSpecifier: "npm:svelte", defaultOn: false},
-    {key: "vue", label: "Vue", entry: "impl/vue/main.ts", source: "impl/vue/App.vue", packageSpecifier: "npm:vue", defaultOn: false},
+    {key: "svelte", label: "Svelte", entry: "impl/svelte/main.ts", source: "impl/svelte/App.svelte", packageSpecifier: "npm:svelte", defaultOn: true},
+    {key: "vue", label: "Vue", entry: "impl/vue/main.ts", source: "impl/vue/App.vue", packageSpecifier: "npm:vue", defaultOn: true},
     {key: "react", label: "React", entry: "impl/react/main.tsx", source: "impl/react/main.tsx", packageSpecifier: "npm:react", defaultOn: true},
-    {key: "preact", label: "Preact", entry: "impl/preact/main.tsx", source: "impl/preact/main.tsx", packageSpecifier: "npm:preact", defaultOn: false},
-    {key: "lit", label: "Lit", entry: "impl/lit/main.ts", source: "impl/lit/main.ts", packageSpecifier: "npm:lit", defaultOn: false},
+    {key: "preact", label: "Preact", entry: "impl/preact/main.tsx", source: "impl/preact/main.tsx", packageSpecifier: "npm:preact", defaultOn: true},
+    {key: "lit", label: "Lit", entry: "impl/lit/main.ts", source: "impl/lit/main.ts", packageSpecifier: "npm:lit", defaultOn: true},
     {key: "vanilla", label: "Vanilla JS", entry: "impl/vanilla/main.ts", source: "impl/vanilla/main.ts", packageSpecifier: undefined, defaultOn: true},
 ]
 
@@ -85,7 +85,7 @@ await copy(root + "static", site, {overwrite: true})
 
 for (const impl of impls) {
     await esbuild.build({...buildOptions, entryPoints: [root + impl.entry], outfile: `${site}impl/${impl.key}/main.js`})
-    await Deno.writeTextFile(`${site}impl/${impl.key}/index.html`, implPage(impl.label))
+    await Deno.writeTextFile(`${site}impl/${impl.key}/index.html`, implPage(impl.variant ? `${impl.label} ${impl.variant}` : impl.label))
 }
 if (await Deno.stat(root + "harness/main.tsx").catch(() => undefined)) {
     await esbuild.build({...buildOptions, entryPoints: [root + "harness/main.tsx"], outfile: site + "harness.js"})
@@ -103,6 +103,7 @@ for (const impl of impls) {
     ;(meta.impls as unknown[]).push({
         key: impl.key,
         label: impl.label,
+        variant: impl.variant,
         version: impl.packageSpecifier ? lockedVersion(lock, impl.packageSpecifier) : undefined,
         sourcePath: impl.source,
         defaultOn: impl.defaultOn,

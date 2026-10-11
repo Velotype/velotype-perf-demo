@@ -1,6 +1,6 @@
 # velotype-perf-demo
 
-The same fleet dashboard written with [Velotype](https://jsr.io/@velotype/velotype) (twice: with plain rows, and with a web component for each row), Solid, Svelte, Vue, React, Preact, Lit, and in plain DOM code, and a page that times each one in the reader's own browser.
+The same fleet dashboard written with [Velotype](https://jsr.io/@velotype/velotype), Solid, Svelte, Vue, React, Preact, Lit, and in plain DOM code, and a page that times each one in the reader's own browser.
 
 The dashboard has a grid of servers (10,000 rows by default), a summary above it, and a toolbar. The page loads each implementation into the same iframe, one at a time, then clicks its buttons and types into its filter box, timing each action until the browser has painted the result.
 
@@ -28,7 +28,6 @@ deno task serve   # serves ./site at http://localhost:8000
 
 - `shared/data.ts`: the data and the operations on it, shared by every implementation so that each does the same work. Everything random comes from a seeded generator, so every implementation shows the same rows after the same actions
 - `impl/velotype/main.tsx`: Velotype 0.3.1, with the grid as a `RenderTemplateArray`
-- `impl/velotype-wc/main.tsx`: Velotype 0.3.1 again, with each row a `<fleet-row>` custom element (still in a `RenderTemplateArray`, whose template is the custom element)
 - `impl/solid/main.tsx`: Solid, with the servers in a store and `<For>`
 - `impl/svelte/App.svelte`: Svelte 5, with `$state.raw` for the list and `$state` fields for each server's live readings
 - `impl/vue/App.vue`: Vue 3.5, with a `shallowRef` list and `v-memo` on each row
@@ -56,10 +55,10 @@ After each scenario the harness compares what every page shows (the number of vi
 ## Notes on the implementations
 
 - **Velotype sorts, moves, and filters with `RenderTemplateArray`'s own methods** (`sort()`, `move()`, and `filter()`, new in 0.3.1), which move the rows already rendered. `sort()` moves only the rows that change places, so re-sorting after a live update moves only the few rows whose CPU changed.
-- **The filter takes rows out of the page in every version but vanilla, which hides them.** Velotype's `filter()` keeps the rows it takes out, so clearing the filter moves them back. The other frameworks filter the list they render, so they remove the rows and render them again when the filter is cleared. The vanilla version hides them with `hidden`, which leaves 10,000 rows for the browser to lay out on every keystroke; it could keep them out of the page the way `filter()` does.
+- **The filter takes rows out of the page in every version.** Velotype's `filter()` and the vanilla version keep the rows they take out, so clearing the filter moves them back. The other frameworks filter the list they render, so they remove the rows and render them again when the filter is cleared.
 - **Solid's live update sets each change by path** (`setServers(index, {...})` inside `batch()`). Setting them with `produce()` on the whole list was twice as slow, because the store then unwraps all 10,000 rows on every update.
 - **Preact is slow to type a filter**, about 290ms of script for the first keystroke against React's 20ms with the same code (and the same in Preact 10.29). Its keyed diff looks for each row's old position by searching outward from where it expects it, so after many scattered removals every search is longer. React looks keys up in a `Map`.
-- **Lit and the web component version render into light DOM**, not a shadow root, so that the shared stylesheet applies inside them and the harness can read their rows. That is a supported Lit option (`createRenderRoot()` returning the element), but not its default.
+- **Lit renders into light DOM**, not a shadow root, so that the shared stylesheet applies inside them and the harness can read their rows. That is a supported Lit option (`createRenderRoot()` returning the element), but not its default.
 - **The grid uses CSS grid rows with `content-visibility: auto`**, as a large grid should. Laid out as a `<table>`, every change re-laid out all 10,000 rows and took seconds in every implementation, which hid the frameworks' own work.
 
 ## How it is measured

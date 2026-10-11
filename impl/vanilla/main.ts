@@ -1,5 +1,5 @@
-// The dashboard in plain DOM code, as a baseline: rows are cloned from a template, and every update
-// is written by hand to touch only what changed
+// The dashboard in plain DOM code, as a baseline: rows are cloned from a template, every update is written by
+// hand to touch only what changed, and the filter takes rows out of the page and keeps them to put back
 
 import {applyChange, compareBy, formatAvgCpu, formatCpu, formatLatency, formatMem, LiveFeed, matches, rowCount, ServerSource, summarize} from "../../shared/data.ts"
 import type {Server, SortKey} from "../../shared/data.ts"
@@ -11,6 +11,8 @@ type Row = {
     fill: HTMLElement
     cpu: Text
     latency: Text
+    /** Shown by the filter, so in the page */
+    shown: boolean
 }
 
 const count = rowCount()
@@ -78,10 +80,7 @@ function createRow(server: Server): Row {
     cpu.data = formatCpu(server.cpu)
     ;(cells[5].firstChild as Text).data = formatMem(server.mem)
     latency.data = formatLatency(server.latency)
-    if (!matches(server, filter)) {
-        element.hidden = true
-    }
-    return {server, element, badge, fill, cpu, latency}
+    return {server, element, badge, fill, cpu, latency, shown: matches(server, filter)}
 }
 
 function updateSummary() {
@@ -99,7 +98,9 @@ function create() {
     for (let i = 0; i < servers.length; i++) {
         const row = createRow(servers[i])
         rows[i] = row
-        fragment.appendChild(row.element)
+        if (row.shown) {
+            fragment.appendChild(row.element)
+        }
     }
     selected = undefined
     rowsElement.textContent = ""
@@ -136,12 +137,29 @@ function tick() {
 }
 function onFilter() {
     filter = (document.getElementById("filter") as HTMLInputElement).value
+    // Rows to show again are gathered, then inserted before the next shown row together
+    let fragment: DocumentFragment | null = null
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i]
-        const hidden = !matches(row.server, filter)
-        if (row.element.hidden !== hidden) {
-            row.element.hidden = hidden
+        const show = matches(row.server, filter)
+        if (!show) {
+            if (row.shown) {
+                row.shown = false
+                row.element.remove()
+            }
+        } else if (!row.shown) {
+            row.shown = true
+            if (!fragment) {
+                fragment = document.createDocumentFragment()
+            }
+            fragment.appendChild(row.element)
+        } else if (fragment) {
+            rowsElement.insertBefore(fragment, row.element)
+            fragment = null
         }
+    }
+    if (fragment) {
+        rowsElement.appendChild(fragment)
     }
 }
 function sort(key: SortKey) {
@@ -150,7 +168,9 @@ function sort(key: SortKey) {
     // Appending a row that is already in the table moves it
     const fragment = document.createDocumentFragment()
     for (let i = 0; i < rows.length; i++) {
-        fragment.appendChild(rows[i].element)
+        if (rows[i].shown) {
+            fragment.appendChild(rows[i].element)
+        }
     }
     rowsElement.appendChild(fragment)
 }
@@ -158,7 +178,9 @@ function moveToTop() {
     if (rows.length > 1) {
         const last = rows.pop()!
         rows.unshift(last)
-        rowsElement.insertBefore(last.element, rowsElement.firstChild)
+        if (last.shown) {
+            rowsElement.insertBefore(last.element, rowsElement.firstChild)
+        }
     }
 }
 function select(element: HTMLDivElement) {

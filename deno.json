@@ -2,7 +2,7 @@
     "tasks": {
         "build": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run ./scripts/build.ts",
         "serve": "deno run --allow-read --allow-net jsr:@std/http@^1.0.20/file-server ./site --port 8000",
-        "check": "deno check harness/ shared/ scripts/ impl/velotype/ impl/velotype-wc/ impl/solid/ impl/react/ impl/preact/ impl/lit/ impl/vanilla/"
+        "check": "deno check harness/ shared/ scripts/ impl/velotype/ impl/solid/ impl/react/ impl/preact/ impl/lit/ impl/vanilla/"
     },
     // Keeps Deno's default 24 hour wait on new versions of third-party packages, but not on Velotype's own,
     // so the demo can measure a Velotype release the day it is published
