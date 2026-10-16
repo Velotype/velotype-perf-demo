@@ -4,21 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Velotype performance demo</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 <meta name="description" content="The same dashboard in Velotype, React, and plain DOM code, timed in your own browser.">
 <style>
+    /* The colors come from theme.css, the velodesign theme. These names are what the rules below use */
     :root {
-        color-scheme: light dark;
-        --bg: #f6f7f9;
-        --surface: #ffffff;
-        --fg: #1d2330;
-        --muted: #5d6678;
-        --line: #e1e4ea;
-        --accent: #3b6fe0;
-        --accent-fg: #ffffff;
-        --accent-soft: #e6eeff;
-        --warn: #8a5a00;
-        --warn-bg: #fdf1d6;
-        --code-bg: #f3f4f7;
+        --bg: var(--background);
+        --surface: var(--background-1);
+        --fg: var(--text);
+        --muted: color-mix(in srgb, var(--text) 65%, var(--background));
+        --line: var(--background-4);
+        --highlight: var(--primary-7);
+        --accent-soft: var(--primary-3);
+        --warn: var(--warning-8);
+        --warn-bg: var(--warning-3);
+        --code-bg: var(--background-2);
+        --card-pad: 20px;
+    }
+    :root[data-theme="light"] {
         --series-0: #3b6fe0;
         --series-1: #7c3aed;
         --series-2: #ca8a04;
@@ -31,35 +37,22 @@
         --series-9: #a16207;
         --bar-text: #ffffff;
     }
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg: #0f1216;
-            --surface: #171b21;
-            --fg: #e4e7ee;
-            --muted: #9aa3b5;
-            --line: #2a2f3a;
-            --accent: #7aa2ff;
-            --accent-fg: #0f1216;
-            --accent-soft: #22304d;
-            --warn: #f0c060;
-            --warn-bg: #3a2f14;
-            --code-bg: #12151a;
-            --series-0: #7aa2ff;
-            --series-1: #a78bfa;
-            --series-2: #facc15;
-            --series-3: #fb923c;
-            --series-4: #4ade80;
-            --series-5: #22d3ee;
-            --series-6: #f472b6;
-            --series-7: #f87171;
-            --series-8: #9ca3af;
-            --series-9: #d6b370;
-            --bar-text: #0f1216;
-        }
+    :root[data-theme="dark"] {
+        --series-0: #7aa2ff;
+        --series-1: #a78bfa;
+        --series-2: #facc15;
+        --series-3: #fb923c;
+        --series-4: #4ade80;
+        --series-5: #22d3ee;
+        --series-6: #f472b6;
+        --series-7: #f87171;
+        --series-8: #9ca3af;
+        --series-9: #d6b370;
+        --bar-text: #0f1216;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-    a { color: var(--accent); }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; transition: color 0.25s ease-in-out, background-color 0.25s ease-in-out; }
+    a { color: var(--fg); }
     code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
     h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 8px; }
     h2 { font-size: 1.2rem; margin: 0 0 12px; }
@@ -67,10 +60,18 @@
     .muted { color: var(--muted); }
     .small { font-size: 0.82em; overflow-wrap: anywhere; }
 
+    .site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; border-bottom: 1px solid var(--background-4); }
+    .site-nav .brand { display: inline-flex; align-items: center; gap: 0.5em; margin-inline-end: auto; font-weight: bold; text-decoration: none; }
+    .site-nav .brand img { width: 1.75em; height: 1.75em; border-radius: 0.2em; }
+    .site-nav .links { display: flex; flex-wrap: wrap; gap: 16px; }
     .page { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 20px; }
     .intro p { max-width: 70ch; }
-    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; min-width: 0; }
-    .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; padding: var(--card-pad); min-width: 0; overflow: hidden; }
+    /* Like velodesign's Card, the first heading of a card is a band across its top */
+    .card > h2:first-child, .card > .card-head:first-child { margin: calc(-1 * var(--card-pad)) calc(-1 * var(--card-pad)) var(--card-pad); padding: 0.75em 1em; background: var(--background-2); border-bottom: 1px solid var(--line); }
+    .card > h2:first-child { font-size: 1em; }
+    .card > .card-head:first-child h2 { font-size: 1em; }
+    .card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
     .card-head h2 { margin: 0; }
 
     .controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; margin-bottom: 12px; }
@@ -86,15 +87,18 @@
         color: var(--fg);
         background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 6px 12px;
+        border-radius: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        transition: color 0.25s ease-in-out, background-color 0.25s ease-in-out, border 0.25s ease-in-out;
     }
     .button, .tab { cursor: pointer; }
-    .button:hover, .tab:hover { border-color: var(--accent); }
-    .button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
-    .button.warning { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+    .button:hover, .tab:hover { background: var(--background-2); }
+    .button.primary { background: var(--primary); border-color: var(--primary-5); color: var(--text); }
+    .button.primary:hover { background: var(--primary-2); border-color: var(--primary-7); }
+    .button.warning { background: var(--warning); border-color: var(--warning-5); color: var(--text); }
+    .button.warning:hover { background: var(--warning-2); border-color: var(--warning-7); }
     .status { display: flex; flex-direction: column; gap: 4px; min-height: 2.8em; margin-bottom: 8px; }
-    progress { width: 100%; height: 8px; accent-color: var(--accent); }
+    progress { width: 100%; height: 8px; accent-color: var(--primary); }
     .progress-row { display: grid; grid-template-columns: 11em minmax(0, 1fr) minmax(0, 16em); align-items: center; gap: 12px; font-size: 0.88em; }
     .progress-label { font-variant-numeric: tabular-nums; }
     .progress-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -105,7 +109,7 @@
     .stage { display: block; width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 
     .results { display: flex; flex-direction: column; gap: 20px; }
-    .alert { background: var(--warn-bg); color: var(--fg); border-left: 4px solid var(--warn); border-radius: 6px; padding: 12px 16px; }
+    .alert { background: var(--warn-bg); color: var(--fg); border: 1px solid var(--warning-6); border-left-width: 4px; border-radius: 0.25rem; padding: 12px 16px; }
     .alert ul { margin: 8px 0 0; padding-left: 1.2em; }
     .table-scroll { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; }
@@ -117,14 +121,14 @@
     .cell { display: grid; justify-items: end; gap: 2px; min-width: 7em; }
     .cell .ms { font-weight: 600; }
     .cell .relative { font-size: 0.8em; color: var(--muted); }
-    .cell.fastest .relative, .fastest { color: var(--accent); font-weight: 600; }
+    .cell.fastest .relative, .fastest { color: var(--highlight); font-weight: 600; }
     .meter { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-    .meter > span { display: block; height: 100%; background: var(--accent); }
+    .meter > span { display: block; height: 100%; background: var(--highlight); }
     .cell.slow .ms { color: var(--warn); }
     .cell.slow .meter > span { background: var(--warn); }
     .chart-bar.slow { background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(0, 0, 0, 0.25) 4px 8px); }
     .mean td { border-bottom: 0; }
-    .tag { display: inline-block; margin-left: 8px; padding: 0 8px; border-radius: 999px; font-size: 0.78em; line-height: 1.7; color: var(--accent); background: var(--accent-soft); white-space: nowrap; }
+    .tag { display: inline-block; margin-left: 8px; padding: 0.1em 0.6em; border-radius: 0.25rem; font-size: 0.85em; line-height: 1.6; color: var(--text); background: var(--primary-3); border: 1px solid var(--primary-6); white-space: nowrap; }
 
     .chart { margin: 0; display: flex; flex-direction: column; gap: 10px; }
     .chart.by-action { margin-top: 10px; }
@@ -153,23 +157,32 @@
     .series-9 { background: var(--series-9); }
 
     .samples { margin-top: 16px; }
-    .samples summary { cursor: pointer; color: var(--accent); }
+    .samples summary { cursor: pointer; }
     .share { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0 8px; }
 
     .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-    .tab.active { background: var(--accent-soft); border-color: var(--accent); }
-    .code { margin: 0; max-height: 560px; overflow: auto; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 0.82em; line-height: 1.5; }
+    .tab.active { background: var(--primary-3); border-color: var(--primary-6); }
+    .code { margin: 0; max-height: 560px; overflow: auto; background: var(--code-bg); border: 1px solid var(--line); border-radius: 0.5rem; padding: 12px; font-size: 0.82em; line-height: 1.5; }
     .notes { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
 
     @media (max-width: 640px) {
         .stage { height: 440px; }
-        .card { padding: 16px; }
+        :root { --card-pad: 16px; }
         .chart-group { grid-template-columns: 1fr; }
         .chart-label { grid-row: auto; }
     }
 </style>
 </head>
 <body>
+<nav class="site-nav" aria-label="The Velocity Project">
+    <a class="brand" href="https://velotype.github.io/"><img src="logo.svg" alt="" width="28" height="28">The Velocity Project</a>
+    <div class="links">
+        <a href="https://velotype.github.io/docs/velotype/">Docs</a>
+        <a href="https://github.com/Velotype">GitHub</a>
+        <a href="https://jsr.io/@velotype">JSR</a>
+        <a href="https://argoday.medium.com/">Articles</a>
+    </div>
+</nav>
 <div id="app"></div>
 <script type="module" src="harness.js"></script>
 </body>

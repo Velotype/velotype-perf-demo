@@ -36,6 +36,7 @@ deno task serve   # serves ./site at http://localhost:8000
 - `impl/lit/main.ts`: Lit, with a light DOM element for the dashboard and one for each row, and `repeat()` keyed by id
 - `impl/vanilla/main.ts`: the baseline, hand-written DOM code
 - `static/impl/app.css`: the dashboard's stylesheet, shared by all of them
+- `static/theme.css` and `static/theme.js`: the Velocity Project site's colors (velodesign's theme tokens, written out as plain CSS) and the script that picks light or dark the way the site does. The page is styled to match the site, but is plain HTML and CSS, not built with velodesign
 - `harness/runner.ts`: drives and times the implementations
 - `harness/main.tsx`: the page around them, in Velotype 0.3.1
 - `scripts/build.ts`: bundles everything the same way (esbuild, minified, production mode) and writes `site/meta.json` with each bundle's size
