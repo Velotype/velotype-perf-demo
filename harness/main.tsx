@@ -489,6 +489,7 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
         const meta = this.attrs.meta
         return <main class="page">
             <header class="intro">
+                <p class="muted back"><a href="https://velotype.github.io/">&larr; The Velocity Project</a></p>
                 <h1>Velotype performance demo</h1>
                 <p>
                     The same fleet dashboard, written with <a href="https://jsr.io/@velotype/velotype">Velotype</a>, Solid, Svelte, Vue, React,
