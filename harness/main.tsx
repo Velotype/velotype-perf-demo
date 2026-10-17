@@ -377,6 +377,17 @@ function renderStatus(progress: Progress | undefined, text: string): HTMLElement
     </div>
 }
 
+/**
+ * How many times each scenario's iterations are repeated on a page. A small grid makes every action take a few
+ * milliseconds, so the frame it lands in (16 ms or more) and anything else the machine is doing are most of what
+ * is measured, and a median of two samples swung by a quarter between identical runs. More samples per page
+ * settles that cheaply, since actions on a small grid are quick. Larger grids make each action long enough that
+ * the default already holds steady.
+ */
+function iterationScale(rows: number): number {
+    return rows <= 1_000 ? 4 : 1
+}
+
 class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> {
     rows = 10_000
     rounds = 1
@@ -386,6 +397,29 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
     running = false
     stopRequested = false
     copied = new RenderObject<string>("", (text) => <span class="muted" aria-live="polite">{text}</span>)
+
+    /** The framework the benchmark is on right now, or undefined while it is not running */
+    activeName?: string
+    previewSelect: HTMLSelectElement = <select aria-label="Framework to try" onChange={(event: Event) => {
+        this.preview = (event.target as HTMLSelectElement).value
+        if (!this.running) {
+            this.showPreview()
+        }
+    }}>
+        {this.attrs.meta.impls.map(impl => <option value={impl.key}>{implName(impl)}</option>)}
+    </select> as HTMLSelectElement
+    stageHead = new RenderObject<string | undefined>(undefined, (active) => active === undefined
+        ? <div class="stage-head">
+            <label class="field inline"><span>Try</span>{this.previewSelect}</label>
+            <p class="muted">Each implementation runs here, one at a time, in a freshly loaded page. Between runs you can use it yourself.</p>
+        </div>
+        : <div class="stage-head">
+            <div class="now" role="status">
+                <span class="now-label">Now running</span>
+                <span class="now-name"><span class="now-dot" aria-hidden="true"></span>{active}</span>
+            </div>
+            <p class="muted">The benchmark is using this stage, so the framework can't be changed or clicked until it finishes.</p>
+        </div>)
 
     frame: HTMLIFrameElement = <iframe class="stage" title="The implementation being measured"></iframe>
     status = new RenderObject<{progress?: Progress, text: string}>({text: ""}, (status) => renderStatus(status.progress, status.text))
@@ -403,6 +437,12 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
 
     protected override mount() {
         this.showPreview()
+    }
+    /** Shows which framework owns the stage, and locks the stage while one does */
+    setActive(name: string | undefined) {
+        this.activeName = name
+        this.stageHead.value = name
+        this.frame.classList.toggle("busy", name !== undefined)
     }
     showPreview() {
         this.frame.src = `impl/${this.preview}/?rows=${this.rows}`
@@ -422,6 +462,7 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
         this.stopRequested = false
         this.controls.value = true
         this.copied.value = ""
+        this.setActive(implName(impls[0]))
         this.frame.scrollIntoView({block: "nearest", behavior: "smooth"})
         const fingerprints: Record<string, Record<string, string>> = {}
         const mismatches: string[] = []
@@ -435,9 +476,13 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
                 scenarios,
                 rows,
                 rounds: this.rounds,
+                iterationScale: iterationScale(rows),
                 timeLimit: this.timeLimit,
                 frame: this.frame,
-                onProgress: (progress) => { this.status.value = {progress, text: ""} },
+                onProgress: (progress) => {
+                    this.status.value = {progress, text: ""}
+                    this.setActive(progress.implName)
+                },
                 onResult: (result) => this.showSummary(new Summary(result, impls), mismatches, rows),
                 onFingerprint: (round, scenario, impl, fingerprint) => {
                     const seen = fingerprints[`${round}-${scenario}`] ||= {}
@@ -460,6 +505,7 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
         } finally {
             this.running = false
             this.controls.value = false
+            this.setActive(undefined)
             this.showPreview()
         }
     }
@@ -540,24 +586,12 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
                     {this.controls}
                 </div>
                 {this.status}
-                <p class="muted">Keep this tab in front while it runs: browsers stop painting background tabs. A quick run of 10,000 rows takes about 15 seconds for each implementation, about 2 minutes for all of them.</p>
+                <p class="muted">Keep this tab in front while it runs: browsers stop painting background tabs. A quick run takes about 15 to 20 seconds for each implementation, about 2 minutes for all of them. With 1,000 rows, each action runs 4 times as often as with more rows, because short actions are noisy.</p>
             </section>
 
             <section class="card">
-                <div class="card-head">
-                    <h2>Stage</h2>
-                    <label class="field inline"><span>Try</span>
-                        <select onChange={(event: Event) => {
-                            this.preview = (event.target as HTMLSelectElement).value
-                            if (!this.running) {
-                                this.showPreview()
-                            }
-                        }}>
-                            {meta.impls.map(impl => <option value={impl.key}>{implName(impl)}</option>)}
-                        </select>
-                    </label>
-                </div>
-                <p class="muted">Each implementation runs here, one at a time, in a freshly loaded page. Between runs you can use it yourself.</p>
+                <h2>Stage</h2>
+                {this.stageHead}
                 {this.frame}
             </section>
 

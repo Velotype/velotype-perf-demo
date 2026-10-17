@@ -255,6 +255,8 @@ export type RunOptions = {
     scenarios: Scenario[]
     rows: number
     rounds: number
+    /** How many times each scenario's iterations are repeated on a page, for more samples per implementation */
+    iterationScale: number
     /** The longest an action may take, in ms */
     timeLimit: number
     frame: HTMLIFrameElement
@@ -298,7 +300,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
             }
         }
     }
-    const steps = options.scenarios.reduce((sum, scenario) => sum + scenario.iterations + 1, 0)
+    const steps = options.scenarios.reduce((sum, scenario) => sum + scenario.iterations * options.iterationScale + 1, 0)
 
     for (let round = 0; round < options.rounds; round++) {
         const order = options.impls.map((_, i) => options.impls[(i + round) % options.impls.length])
@@ -317,7 +319,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
             // After a scenario stops part way, this page has done different work from the others, so it is not compared again
             let comparable = true
             for (const scenario of options.scenarios) {
-                const end = done + scenario.iterations + 1
+                const iterations = scenario.iterations * options.iterationScale
+                const end = done + iterations + 1
                 if (tooSlowScenarios >= tooSlowScenariosPerPage) {
                     scenario.metrics.forEach(metric => mark(metric, impl.key, "not run"))
                     done = end
@@ -325,7 +328,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
                 }
                 try {
                     await scenario.prepare(app, options.rows)
-                    for (let iteration = 0; iteration <= scenario.iterations; iteration++) {
+                    for (let iteration = 0; iteration <= iterations; iteration++) {
                         if (options.shouldStop()) {
                             throw new RunStopped("Stopped.")
                         }

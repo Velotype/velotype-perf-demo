@@ -107,6 +107,15 @@
         .progress-row { grid-template-columns: 1fr; gap: 2px; }
     }
 
+    .stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+    .stage-head p { margin: 0; flex: 1 1 18em; }
+    .now { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--highlight); }
+    .now-label { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+    .now-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+    .now-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--highlight); animation: now-pulse 1.2s ease-in-out infinite; }
+    @keyframes now-pulse { 50% { opacity: 0.25; } }
+    @media (prefers-reduced-motion: reduce) { .now-dot { animation: none; } }
+    .stage.busy { pointer-events: none; border-color: var(--highlight); box-shadow: 0 0 0 2px var(--accent-soft); }
     .stage { display: block; width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 
     .results { display: flex; flex-direction: column; gap: 20px; }
