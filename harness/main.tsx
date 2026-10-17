@@ -408,7 +408,12 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
     }}>
         {this.attrs.meta.impls.map(impl => <option value={impl.key}>{implName(impl)}</option>)}
     </select> as HTMLSelectElement
-    stageHead = new RenderObject<string | undefined>(undefined, (active) => active === undefined
+    /** Set once the user has aborted, until the run has wound down (it stops between actions) */
+    aborting = false
+    abortButton = () => <button type="button" class="button warning" disabled={this.aborting} onClick={() => this.abort()}>
+        {this.aborting ? "Aborting..." : "Abort benchmark run"}
+    </button>
+    stageHead = new RenderObject<{active?: string, aborting: boolean}>({aborting: false}, ({active}) => active === undefined
         ? <div class="stage-head">
             <label class="field inline"><span>Try</span>{this.previewSelect}</label>
             <p class="muted">Each implementation runs here, one at a time, in a freshly loaded page. Between runs you can use it yourself.</p>
@@ -419,12 +424,13 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
                 <span class="now-name"><span class="now-dot" aria-hidden="true"></span>{active}</span>
             </div>
             <p class="muted">The benchmark is using this stage, so the framework can't be changed or clicked until it finishes.</p>
+            {this.abortButton()}
         </div>)
 
     frame: HTMLIFrameElement = <iframe class="stage" title="The implementation being measured"></iframe>
     status = new RenderObject<{progress?: Progress, text: string}>({text: ""}, (status) => renderStatus(status.progress, status.text))
-    controls = new RenderObject<boolean>(false, (running) => running
-        ? <button type="button" class="button warning" onClick={() => { this.stopRequested = true }}>Stop</button>
+    controls = new RenderObject<{running: boolean}>({running: false}, ({running}) => running
+        ? this.abortButton()
         : <button type="button" class="button primary" onClick={() => { this.start() }}>Run the benchmark</button>)
     results = new RenderObject<ResultsState>({mismatches: [], rows: this.rows}, renderResults)
     samples = new RenderTemplateArray<SampleRow>({
@@ -438,10 +444,21 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
     protected override mount() {
         this.showPreview()
     }
+    /** Stops the run at the next gap between actions, and says so on both abort buttons */
+    abort() {
+        if (!this.running || this.aborting) {
+            return
+        }
+        this.stopRequested = true
+        this.aborting = true
+        this.controls.value = {running: true}
+        this.stageHead.value = {active: this.activeName, aborting: true}
+        this.status.value = {...this.status.value, text: "Aborting: finishing the current action first."}
+    }
     /** Shows which framework owns the stage, and locks the stage while one does */
     setActive(name: string | undefined) {
         this.activeName = name
-        this.stageHead.value = name
+        this.stageHead.value = {active: name, aborting: this.aborting}
         this.frame.classList.toggle("busy", name !== undefined)
     }
     showPreview() {
@@ -460,7 +477,8 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
         }
         this.running = true
         this.stopRequested = false
-        this.controls.value = true
+        this.aborting = false
+        this.controls.value = {running: true}
         this.copied.value = ""
         this.setActive(implName(impls[0]))
         this.frame.scrollIntoView({block: "nearest", behavior: "smooth"})
@@ -504,7 +522,8 @@ class DemoPage extends Component<{meta: Meta, sources: Record<string, string>}> 
             this.status.value = {text: ""}
         } finally {
             this.running = false
-            this.controls.value = false
+            this.aborting = false
+            this.controls.value = {running: false}
             this.setActive(undefined)
             this.showPreview()
         }
