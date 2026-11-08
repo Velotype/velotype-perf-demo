@@ -18,7 +18,7 @@
     "jsr:@std/path@^1.1.5": "1.1.6",
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/streams@^1.2.0": "1.2.0",
-    "jsr:@velotype/velotype@~0.3.1": "0.3.1",
+    "jsr:@velotype/velotype@~0.3.3": "0.3.3",
     "npm:@babel/core@^7.29.7": "7.29.7",
     "npm:@babel/preset-typescript@^7.29.7": "7.29.7_@babel+core@7.29.7",
     "npm:@types/react-dom@^19.3.0": "19.3.0_@types+react@19.3.0",
@@ -97,8 +97,8 @@
     "@std/streams@1.2.0": {
       "integrity": "256b934254778f2bf45f5713b934209ff29e9b4b7fd4ec095219966813758c5f"
     },
-    "@velotype/velotype@0.3.1": {
-      "integrity": "d1fe7c6c8c1c4e896add41ee156b7e646c998d841c321d599cc79fb5a3ac1694"
+    "@velotype/velotype@0.3.3": {
+      "integrity": "86b554962b03242d795172132d1f9be5b256cbdf3e840432e0ad641e61e60bdb"
     }
   },
   "npm": {
@@ -886,7 +886,7 @@
     "dependencies": [
       "jsr:@luca/esbuild-deno-loader@~0.11.1",
       "jsr:@std/fs@^1.0.19",
-      "jsr:@velotype/velotype@~0.3.1",
+      "jsr:@velotype/velotype@~0.3.3",
       "npm:@babel/core@^7.29.7",
       "npm:@babel/preset-typescript@^7.29.7",
       "npm:@types/react-dom@^19.3.0",
